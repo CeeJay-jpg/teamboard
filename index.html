@@ -240,6 +240,7 @@ select { appearance: none; -webkit-appearance: none; background-image: url("data
   <button class="nav-tab" onclick="showTab('activities')">Activities</button>
   <button class="nav-tab" onclick="showTab('scores')">Scores</button>
   <button class="nav-tab" onclick="showTab('awards')">Awards</button>
+  <button class="nav-tab" onclick="resetAll()" style="margin-left:auto;color:#991b1b">⟳ Reset</button>
 </nav>
 
 <!-- TEAMS -->
@@ -341,6 +342,33 @@ let scores = {};
 // awards: [{id, emoji, title, desc, winner:''}]
 let awards = [];
 
+// ── LOCALSTORAGE ──────────────────────────────────────────────────────────
+const LS_KEY = 'teamboard_v1';
+
+function saveState() {
+  try {
+    localStorage.setItem(LS_KEY, JSON.stringify({ teamMembers, activities, scores, awards }));
+  } catch(e) {}
+}
+
+function loadState() {
+  try {
+    const raw = localStorage.getItem(LS_KEY);
+    if (!raw) return;
+    const s = JSON.parse(raw);
+    if (s.teamMembers) { Object.assign(teamMembers, s.teamMembers); }
+    if (s.activities)  { activities = s.activities; }
+    if (s.scores)      { scores = s.scores; }
+    if (s.awards)      { awards = s.awards; }
+  } catch(e) {}
+}
+
+function resetAll() {
+  if (!confirm('Reset ALL data — teams, scores, activities and awards? This cannot be undone.')) return;
+  localStorage.removeItem(LS_KEY);
+  location.reload();
+}
+
 // ── NAV ──────────────────────────────────────────────────────────────────
 function showTab(tab) {
   document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
@@ -417,7 +445,7 @@ function setupLaneDropZone(zone) {
     if (tl === teamDragging.fromLane) { removePlaceholder(); return; }
     teamMembers[teamDragging.fromLane] = teamMembers[teamDragging.fromLane].filter(n => n !== teamDragging.name);
     teamMembers[tl].push(teamDragging.name);
-    teamDragging = null; removePlaceholder(); renderTeams();
+    teamDragging = null; removePlaceholder(); saveState(); renderTeams();
   });
 }
 function getOrCreatePlaceholder() {
@@ -428,7 +456,7 @@ function removePlaceholder() { if (placeholder && placeholder.parentNode) placeh
 function addPerson() {
   const input = document.getElementById('nameInput');
   const name = input.value.trim(); if (!name) return;
-  teamMembers.pool.push(name); input.value = ''; renderTeams();
+  teamMembers.pool.push(name); input.value = ''; saveState(); renderTeams();
 }
 document.getElementById('nameInput').addEventListener('keydown', e => { if (e.key === 'Enter') addPerson(); });
 
@@ -449,7 +477,7 @@ function saveNewActivity() {
   const id = 'act_' + Date.now();
   activities.push({ id, name, type, duration: dur });
   scores[id] = {};
-  closeNewActivity(); renderActivities();
+  closeNewActivity(); saveState(); renderActivities();
 }
 document.getElementById('newActName').addEventListener('keydown', e => { if (e.key === 'Enter') saveNewActivity(); });
 
@@ -457,7 +485,7 @@ function deleteActivity(id) {
   activities = activities.filter(a => a.id !== id);
   delete scores[id];
   if (openActId === id) openActId = null;
-  renderActivities();
+  saveState(); renderActivities();
 }
 
 function toggleActPanel(id) {
@@ -471,7 +499,7 @@ function saveActEdit(id) {
   act.name = document.getElementById('editName_' + id).value.trim() || act.name;
   act.type = document.getElementById('editType_' + id).value;
   act.duration = parseInt(document.getElementById('editDur_' + id).value) || 0;
-  openActId = null; renderActivities();
+  openActId = null; saveState(); renderActivities();
 }
 
 function renderActivities() {
@@ -569,7 +597,7 @@ function renderActivities() {
       const [moved] = activities.splice(fromIdx, 1);
       const newIdx = activities.findIndex(a => a.id === act.id);
       activities.splice(insertAfter ? newIdx + 1 : newIdx, 0, moved);
-      actDragging = null; renderActivities();
+      actDragging = null; saveState(); renderActivities();
     });
   });
 }
@@ -584,7 +612,7 @@ function getAllPeople() {
 function adjustScore(actId, key, delta) {
   if (!scores[actId]) scores[actId] = {};
   scores[actId][key] = Math.max(0, (scores[actId][key] || 0) + delta);
-  renderScores();
+  saveState(); renderScores();
 }
 
 function renderScores() {
@@ -690,7 +718,7 @@ function saveNewAward() {
   const emoji = document.getElementById('newAwardEmoji').value.trim() || '🏅';
   const desc = document.getElementById('newAwardDesc').value.trim();
   awards.push({ id: 'aw_' + Date.now(), emoji, title, desc, winner: '' });
-  closeNewAward(); renderAwards();
+  closeNewAward(); saveState(); renderAwards();
 }
 document.getElementById('newAwardTitle').addEventListener('keydown', e => { if (e.key === 'Enter') saveNewAward(); });
 
@@ -702,9 +730,9 @@ function saveAwardEdit(id) {
   aw.title = document.getElementById('editAwTitle_' + id).value.trim() || aw.title;
   aw.desc = document.getElementById('editAwDesc_' + id).value.trim();
   aw.winner = document.getElementById('editAwWinner_' + id).value;
-  openAwardId = null; renderAwards();
+  openAwardId = null; saveState(); renderAwards();
 }
-function deleteAward(id) { awards = awards.filter(a => a.id !== id); if (openAwardId === id) openAwardId = null; renderAwards(); }
+function deleteAward(id) { awards = awards.filter(a => a.id !== id); if (openAwardId === id) openAwardId = null; saveState(); renderAwards(); }
 
 function renderAwards() {
   const list = document.getElementById('awardsList');
@@ -770,12 +798,13 @@ function renderAwards() {
       const [moved] = awards.splice(fromIdx, 1);
       const newIdx = awards.findIndex(a => a.id === aw.id);
       awards.splice(insertAfter ? newIdx + 1 : newIdx, 0, moved);
-      awardDragging = null; renderAwards();
+      awardDragging = null; saveState(); renderAwards();
     });
   });
 }
 
 // ── INIT ──────────────────────────────────────────────────────────────────
+loadState();
 renderTeams();
 renderActivities();
 </script>
